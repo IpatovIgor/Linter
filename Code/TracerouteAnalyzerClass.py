@@ -2,14 +2,12 @@ from Code.Geo import *
 
 
 class TracerouteAnalyzer:
-    """Основной анализатор трассировки"""
 
     def __init__(self):
         self.issues = []
         self.geoip = GeoIP()
 
     def analyze(self, parser) -> List[Dict]:
-        """Анализирует трассировку"""
         self.issues = []
 
         # Базовые проверки
@@ -24,7 +22,6 @@ class TracerouteAnalyzer:
         return self.issues
 
     def _check_high_latency(self, hops: List[Dict]):
-        """Проверяет высокие задержки"""
         for hop in hops:
             if hop['type'] == 'timeout':
                 continue
@@ -42,7 +39,6 @@ class TracerouteAnalyzer:
                 })
 
     def _check_packet_loss(self, hops: List[Dict]):
-        """Проверяет потери пакетов"""
         for hop in hops:
             if hop['packet_loss'] > 50:
                 self.issues.append({
@@ -52,7 +48,6 @@ class TracerouteAnalyzer:
                 })
 
     def _check_routing_loops(self, hops: List[Dict]):
-        """Проверяет петли маршрутизации"""
         seen_ips = {}
 
         for hop in hops:
@@ -70,7 +65,6 @@ class TracerouteAnalyzer:
                 seen_ips[ip] = True
 
     def _get_warnings(self, hops):
-        """Возвращает информационные замечания"""
         warnings = []
 
         # Проверяем общее время
@@ -106,15 +100,15 @@ class TracerouteAnalyzer:
         # Всегда показываем базовую информацию
         summary = parser.get_summary()
         if summary:
-            print(f"🎯 Цель: {summary['target_host']} ({summary['target_ip']})")
-            print(f"📊 Прыжков: {summary['total_hops']}")
-            print(f"⏱️  Средняя задержка: {summary['average_latency']:.1f} мс")
-            print(f"📦 Потери пакетов: {summary['timeout_hops']} прыжков с таймаутами")
+            print(f"Цель: {summary['target_host']} ({summary['target_ip']})")
+            print(f"Прыжков: {summary['total_hops']}")
+            print(f"Средняя задержка: {summary['average_latency']:.1f} мс")
+            print(f"Потери пакетов: {summary['timeout_hops']} прыжков с таймаутами")
 
-        print("\n🔍 Детали прыжков:")
+        print("\nДетали прыжков:")
         for hop in parser.hops:
             if hop['type'] == 'timeout':
-                print(f"  {hop['hop_number']:2d}. ❌ Таймаут (потеряно 100% пакетов)")
+                print(f"  {hop['hop_number']:2d}. Таймаут (потеряно 100% пакетов)")
             else:
                 valid_times = [t for t in hop['times'] if t is not None]
                 if valid_times:
@@ -126,24 +120,23 @@ class TracerouteAnalyzer:
 
         # Показываем проблемы если есть
         if self.issues:
-            print(f"\n🚨 Обнаружено проблем: {len(self.issues)}")
+            print(f"\nОбнаружено проблем: {len(self.issues)}")
             for issue in self.issues:
                 icon = "🔴" if issue['type'] == 'routing_loop' else "🟡" if issue['type'] == 'high_latency' else "🔵"
                 print(f"   {icon} {issue['message']} (прыжок {issue['hop_number']})")
         else:
-            print(f"\n🎉 Критических проблем не обнаружено!")
+            print(f"\nКритических проблем не обнаружено!")
 
             # Все равно покажем небольшие предупреждения
             warnings = self._get_warnings(parser.hops)
             if warnings:
-                print(f"💡 Замечания:")
+                print(f"Замечания:")
                 for warning in warnings:
-                    print(f"   📝 {warning}")
+                    print(f"{warning}")
 
-        # Показываем географическую информацию если есть
         geo_result = self.geoip.analyze_countries(parser.hops)
         if geo_result['hop_countries']:
-            print(f"\n🌍 География маршрута:")
+            print(f"\nГеография маршрута:")
             countries_hops = {}
             for hop_num, country in geo_result['hop_countries'].items():
                 if country not in countries_hops:

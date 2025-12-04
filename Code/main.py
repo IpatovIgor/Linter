@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""
-Traceroute Linter - простая версия
-"""
 
 import sys
 import os
@@ -26,7 +23,6 @@ def main():
         print(f"❌ Ошибка чтения: {e}")
         sys.exit(1)
 
-    # Парсим
     parser = TracerouteParser()
     if not parser.parse_output(traceroute_output):
         print("❌ Ошибки парсинга:")
@@ -36,7 +32,6 @@ def main():
 
     print("✅ Парсинг завершен")
 
-    # Проверяем структуру
     structure_warnings = parser.validate_structure()
     if structure_warnings:
         print("⚠️  Предупреждения структуры:")
@@ -44,12 +39,10 @@ def main():
             print(f"   - {warning}")
         print()
 
-    # Анализируем
     analyzer = TracerouteAnalyzer()
     issues = analyzer.analyze(parser)
     analyzer.print_report(parser)
 
-    # Итог
     total_issues = len(issues) + len(structure_warnings)
     print(f"\n🎯 Итого проблем: {total_issues}")
 

@@ -201,11 +201,3 @@ class TestFileHandling(unittest.TestCase):
         finally:
             # Удаляем временный файл
             os.unlink(temp_file)
-
-
-if __name__ == '__main__':
-    print("🧪 Запуск тестов Traceroute Linter...")
-    print("=" * 50)
-
-    # Запускаем тесты
-    unittest.main(verbosity=2)

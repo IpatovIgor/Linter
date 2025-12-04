@@ -3,8 +3,6 @@ from typing import List, Dict
 
 
 class TracerouteParser:
-    """Класс для парсинга и анализа вывода traceroute"""
-
     def __init__(self):
         self.hops = []
         self.errors = []
@@ -13,10 +11,6 @@ class TracerouteParser:
         self.max_hops = 30
 
     def parse_output(self, traceroute_output: str) -> bool:
-        """
-        Парсит весь вывод traceroute
-        Возвращает True если парсинг успешен, False если есть ошибки формата
-        """
         lines = traceroute_output.strip().split('\n')
         parsing_success = True
 
@@ -25,11 +19,9 @@ class TracerouteParser:
             if not line:
                 continue
 
-            # Пропускаем строки, которые начинаются с не-цифры (кроме заголовка)
             if not line[0].isdigit() and not line.startswith('traceroute'):
                 continue
 
-            # Пробуем распарсить строку
             parsed = self._parse_line(line, line_num)
             if not parsed:
                 self.errors.append(f"Строка {line_num}: Неизвестный формат - '{line}'")
@@ -38,8 +30,6 @@ class TracerouteParser:
         return parsing_success
 
     def _parse_line(self, line: str, line_num: int) -> bool:
-        """Парсит одну строку вывода traceroute"""
-
         # Проверяем заголовок
         if line.startswith('traceroute to'):
             return self._parse_header(line)
@@ -71,7 +61,6 @@ class TracerouteParser:
             return self._parse_complex_format(hop_number, line_num, line)
 
     def _parse_header(self, line: str) -> bool:
-        """Парсит заголовок traceroute"""
         parts = line.split()
         if len(parts) >= 4:
             self.target_host = parts[2]
@@ -87,7 +76,6 @@ class TracerouteParser:
         return True
 
     def _parse_simple_timeout(self, hop_number: int, line_num: int) -> bool:
-        """Парсит простой таймаут: '5  *'"""
         hop_data = {
             'line_number': line_num,
             'hop_number': hop_number,
@@ -101,7 +89,6 @@ class TracerouteParser:
         return True
 
     def _parse_full_timeout(self, hop_number: int, line_num: int) -> bool:
-        """Парсит полный таймаут: '5  *  *  *'"""
         hop_data = {
             'line_number': line_num,
             'hop_number': hop_number,
@@ -115,7 +102,6 @@ class TracerouteParser:
         return True
 
     def _parse_complex_format(self, hop_number: int, line_num: int, original_line: str) -> bool:
-        """Парсит сложные форматы с IP и временами"""
         ip_address = None
         hostname = None
 
@@ -186,7 +172,6 @@ class TracerouteParser:
         return True
 
     def validate_structure(self) -> List[str]:
-        """Проверяет структурную корректность данных"""
         warnings = []
 
         if not self.hops:
@@ -203,7 +188,6 @@ class TracerouteParser:
         return warnings
 
     def get_summary(self) -> Dict:
-        """Возвращает сводную информацию о трассировке"""
         if not self.hops:
             return {}
 

@@ -8,21 +8,24 @@ class GeoIP:
         self.cache = {}
 
     def get_country(self, ip_address: str) -> Optional[str]:
-        """Получает страну по IP"""
         if not ip_address or ip_address == '*':
             return None
+
+        # Проверка на приватные IP
+        if ip_address.startswith(('192.168.', '10.', '100.', '172.16.', '172.31.', '169.254.')):
+            return "Private IP"
 
         if ip_address in self.cache:
             return self.cache[ip_address]
 
         try:
-            url = f"http://ip-api.com/json/{ip_address}"
-            response = requests.get(url, timeout=3)
+            url = f"https://ipapi.co/{ip_address}/json/"
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            response = requests.get(url, headers=headers, timeout=3)
 
             if response.status_code == 200:
                 data = response.json()
-                country = data.get('country')
-
+                country = data.get('country_name')
                 self.cache[ip_address] = country
                 time.sleep(0.1)
                 return country
@@ -33,11 +36,9 @@ class GeoIP:
         return None
 
     def analyze_countries(self, hops: List[Dict]) -> Dict:
-        """Анализирует страны маршрута"""
         countries = {}
         hop_countries = {}
 
-        # Собираем страны
         for hop in hops:
             ip = hop.get('ip_address')
             if ip and ip != '*':
@@ -46,11 +47,9 @@ class GeoIP:
                     countries[country] = countries.get(country, 0) + 1
                     hop_countries[hop['hop_number']] = country
 
-        # Проверяем аномалии
         issues = []
         unique_countries = set(countries.keys())
 
-        # Слишком много стран
         if len(unique_countries) > 4:
             issues.append({
                 'type': 'too_many_countries',
