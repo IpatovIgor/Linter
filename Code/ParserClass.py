@@ -1,14 +1,17 @@
 import re
 from typing import List, Dict
+from collections import defaultdict
 
 
 class TracerouteParser:
     def __init__(self):
         self.hops = []
         self.errors = []
+        self.warnings = []
         self.target_host = None
         self.target_ip = None
         self.max_hops = 30
+        self.complexity_metrics = {}
 
     def parse_output(self, traceroute_output: str) -> bool:
         lines = traceroute_output.strip().split('\n')
@@ -27,29 +30,27 @@ class TracerouteParser:
                 self.errors.append(f"Строка {line_num}: Неизвестный формат - '{line}'")
                 parsing_success = False
 
+        if self.hops:
+            self._calculate_complexity_metrics()
+
         return parsing_success
 
     def _parse_line(self, line: str, line_num: int) -> bool:
-        # Проверяем заголовок
         if line.startswith('traceroute to'):
             return self._parse_header(line)
 
-        # Пропускаем пустые строки
         if not line.strip():
             return True
 
-        # Разбиваем строку на части
         parts = line.split()
         if len(parts) < 2:
             return False
 
-        # Первая часть должна быть номером прыжка
         if not parts[0].isdigit():
             return False
 
         hop_number = int(parts[0])
 
-        # Анализируем остальные части
         if len(parts) == 2 and parts[1] == '*':
             # Формат: "5  *"
             return self._parse_simple_timeout(hop_number, line_num)
@@ -64,12 +65,10 @@ class TracerouteParser:
         parts = line.split()
         if len(parts) >= 4:
             self.target_host = parts[2]
-            # Извлекаем IP из скобок
             ip_match = re.search(r'\(([\d\.]+)\)', line)
             if ip_match:
                 self.target_ip = ip_match.group(1)
 
-            # Ищем максимальное количество прыжков
             hops_match = re.search(r'(\d+)\s+hops max', line)
             if hops_match:
                 self.max_hops = int(hops_match.group(1))
@@ -105,39 +104,32 @@ class TracerouteParser:
         ip_address = None
         hostname = None
 
-        # Ищем IP адрес в скобках
         ip_match = re.search(r'\(([\d\.]+)\)', original_line)
         if ip_match:
             ip_address = ip_match.group(1)
-            # Ищем hostname перед скобками
             hostname_match = re.search(r'(\S+)\s+\([\d\.]+\)', original_line)
             if hostname_match:
                 hostname = hostname_match.group(1)
 
-        # Если не нашли IP в скобках, ищем IP в строке
         if not ip_address:
             ip_match = re.search(r'\b(\d+\.\d+\.\d+\.\d+)\b', original_line)
             if ip_match and ip_match.group(1) != '0.0.0.0':
                 ip_address = ip_match.group(1)
                 hostname = ip_address
 
-        # Ищем времена - используем регулярное выражение для поиска чисел с 'ms'
         times = []
         time_matches = re.findall(r'([\d\.]+)\s*ms|\*', original_line)
 
         if time_matches:
             times = list(time_matches)
         else:
-            # Если не нашли времена, проверяем звездочки
             star_count = original_line.count('*')
             if star_count > 0:
                 times = ['*'] * star_count
 
-        # Дополняем времена до 3 попыток если нужно
         while len(times) < 3:
             times.append('*')
 
-        # Создаем данные прыжка
         converted_times = []
         for time_str in times:
             if time_str == '*':
@@ -150,7 +142,6 @@ class TracerouteParser:
 
         packet_loss = (converted_times.count(None) / len(converted_times)) * 100
 
-        # Определяем тип прыжка
         if packet_loss == 100:
             hop_type = 'timeout'
         elif packet_loss > 0:
@@ -171,6 +162,36 @@ class TracerouteParser:
         self.hops.append(hop_data)
         return True
 
+    def _calculate_complexity_metrics(self):
+        unique_ips = set()
+        country_changes = 0
+        timeout_count = 0
+        packet_loss_total = 0
+
+        prev_ip = None
+        for hop in self.hops:
+            ip = hop.get('ip_address')
+            if ip and ip != '*':
+                unique_ips.add(ip)
+
+            if hop['type'] == 'timeout':
+                timeout_count += 1
+
+            packet_loss_total += hop['packet_loss']
+
+            if ip and prev_ip and ip != prev_ip:
+                if ip.split('.')[0] != prev_ip.split('.')[0]:
+                    country_changes += 1
+
+        self.complexity_metrics = {
+            'unique_nodes': len(unique_ips),
+            'timeout_percentage': (timeout_count / len(self.hops)) * 100,
+            'avg_packet_loss': packet_loss_total / len(self.hops),
+            'route_changes': country_changes,
+            'hop_count': len(self.hops),
+            'is_complex': len(unique_ips) < len(self.hops) * 0.7
+        }
+
     def validate_structure(self) -> List[str]:
         warnings = []
 
@@ -178,7 +199,6 @@ class TracerouteParser:
             warnings.append("Не найдено данных о маршруте")
             return warnings
 
-        # Проверяем последовательность номеров прыжков
         hop_numbers = [hop['hop_number'] for hop in self.hops]
         expected_sequence = list(range(1, len(hop_numbers) + 1))
 
@@ -195,7 +215,6 @@ class TracerouteParser:
         timeout_hops = len([h for h in self.hops if h['packet_loss'] == 100])
         successful_hops = len([h for h in self.hops if h['packet_loss'] == 0])
 
-        # Считаем среднюю задержку (игнорируя таймауты)
         all_times = []
         for hop in self.hops:
             valid_times = [t for t in hop['times'] if t is not None]
@@ -212,5 +231,7 @@ class TracerouteParser:
             'timeout_hops': timeout_hops,
             'average_latency': avg_latency,
             'max_latency': max(all_times) if all_times else 0,
-            'parsing_errors': len(self.errors)
+            'parsing_errors': len(self.errors),
+            'complexity_score': self.complexity_metrics.get('unique_nodes', 0),
+            'route_complexity': 'высокая' if self.complexity_metrics.get('is_complex', False) else 'низкая'
         }
